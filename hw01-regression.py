@@ -171,18 +171,47 @@ def trainer(train_loader, valid_loader, model, config, device):
 
         if early_stop_count >= config['early_stop']:
             print('\nModel is not improving, so we halt the training session.')
+            print(f"validate set best loss: {best_loss}")
             return
+    
+    print(f"validate set best loss: {best_loss}")
 
 
-if __name__ == '__main__':
+def save_pred(preds, file):
+    ''' Save predictions to specified file '''
+    with open(file, 'w') as fp:
+        writer = csv.writer(fp)
+        writer.writerow(['id', 'tested_positive'])
+        for i, p in enumerate(preds):
+            writer.writerow([i, p])
+
+def test_process():
     same_seed(config['seed'])
-    train_data, test_data = pd.read_csv('data/covid19/covid_train.csv').values, pd.read_csv('data/covid19/covid_test.csv').values
+    train_data = pd.read_csv('data/covid19/covid_train.csv').values
+    test_data = pd.read_csv('data/covid19/covid_test.csv').values
+    train_data, valid_data = train_valid_split(train_data, config['valid_ratio'], config['seed'])
+
+    print(f"test_data size: {test_data.shape}")
+
+    _, _, x_test, _, _ = select_feat(train_data, valid_data, test_data, config['select_all'])
+    test_dataset = COVID19Dataset(x_test)
+    test_loader = DataLoader(test_dataset, batch_size=config['batch_size'], shuffle=False, pin_memory=True)
+
+    model = My_Model(input_dim=x_test.shape[1]).to(device)
+    model.load_state_dict(torch.load(config['save_path']))
+    preds = predict(test_loader, model, device) 
+    save_pred(preds, 'pred.csv')
+
+
+def train_process():
+    same_seed(config['seed'])
+    train_data = pd.read_csv('data/covid19/covid_train.csv').values
+    test_data = pd.read_csv('data/covid19/covid_test.csv').values
     train_data, valid_data = train_valid_split(train_data, config['valid_ratio'], config['seed'])
 
     # Print out the data size.
-    print(f"""train_data size: {train_data.shape} 
-    valid_data size: {valid_data.shape} 
-    test_data size: {test_data.shape}""")
+    print(f"train_data size: {train_data.shape}")
+    print(f"valid_data size: {valid_data.shape}")
 
     # Select features
     x_train, x_valid, x_test, y_train, y_valid = select_feat(train_data, valid_data, test_data, config['select_all'])
@@ -190,14 +219,17 @@ if __name__ == '__main__':
     # Print out the number of features.
     print(f'number of features: {x_train.shape[1]}')
 
-    train_dataset, valid_dataset, test_dataset = COVID19Dataset(x_train, y_train), \
-                                                COVID19Dataset(x_valid, y_valid), \
-                                                COVID19Dataset(x_test)
-
+    train_dataset, valid_dataset = COVID19Dataset(x_train, y_train), \
+                                                COVID19Dataset(x_valid, y_valid)
+                                             
     # Pytorch data loader loads pytorch dataset into batches.
     train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
     valid_loader = DataLoader(valid_dataset, batch_size=config['batch_size'], shuffle=True, pin_memory=True)
-    test_loader = DataLoader(test_dataset, batch_size=config['batch_size'], shuffle=False, pin_memory=True)
 
     model = My_Model(input_dim=x_train.shape[1]).to(device) # put your model and data on the same computation device.
     trainer(train_loader, valid_loader, model, config, device)
+
+
+if __name__ == '__main__':
+    test_process()
+    
