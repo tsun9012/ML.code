@@ -16,7 +16,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, random_split
 
 # For plotting learning curve
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 config = {
@@ -115,13 +115,22 @@ def trainer(train_loader, valid_loader, model, config, device):
     # Define your optimization algorithm. 
     # TODO: Please check https://pytorch.org/docs/stable/optim.html to get more available algorithms.
     # TODO: L2 regularization (optimizer(weight decay...) or implement by your self).
-    optimizer = torch.optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=0.7) 
-    writer = SummaryWriter() # Writer of tensoboard.
+    # optimizer = torch.optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=0.7) 
+
+    # L2正则化,weight_decay是正则化系数
+    #optimizer = torch.optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=0.7, weight_decay=1e-5) 
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'], weight_decay=0) 
+
+    # writer = SummaryWriter() # Writer of tensoboard.
 
     if not os.path.isdir('./models'):
         os.mkdir('./models') # Create directory of saving models.
 
     n_epochs, best_loss, step, early_stop_count = config['n_epochs'], math.inf, 0, 0
+
+    # output log
+    outputData = {"epoch":[], "train loss":[]}
 
     for epoch in range(n_epochs):
         model.train() # Set your model to train mode.
@@ -139,13 +148,15 @@ def trainer(train_loader, valid_loader, model, config, device):
             optimizer.step()                    # Update parameters.
             step += 1
             loss_record.append(loss.detach().item())
-            
+
             # Display current epoch number and loss on tqdm progress bar.
             train_pbar.set_description(f'Epoch [{epoch+1}/{n_epochs}]')
             train_pbar.set_postfix({'loss': loss.detach().item()})
 
         mean_train_loss = sum(loss_record)/len(loss_record)
-        writer.add_scalar('Loss/train', mean_train_loss, step)
+        outputData["epoch"].append(epoch)
+        outputData["train loss"].append(mean_train_loss)
+        # writer.add_scalar('Loss/train', mean_train_loss, step)
 
         model.eval() # Set your model to evaluation mode.
         loss_record = []
@@ -172,8 +183,11 @@ def trainer(train_loader, valid_loader, model, config, device):
         if early_stop_count >= config['early_stop']:
             print('\nModel is not improving, so we halt the training session.')
             print(f"validate set best loss: {best_loss}")
+            df = pd.DataFrame(outputData)
+            df.to_csv("log/hw01data.csv", index=False)
             return
-    
+    df = pd.DataFrame(outputData)
+    df.to_csv("log/hw01data.csv", index=False)
     print(f"validate set best loss: {best_loss}")
 
 
@@ -231,5 +245,5 @@ def train_process():
 
 
 if __name__ == '__main__':
-    test_process()
+    train_process()
     
