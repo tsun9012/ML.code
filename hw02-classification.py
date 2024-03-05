@@ -172,7 +172,7 @@ class Classifier(nn.Module):
 # TODO: change the value of "concat_nframes" for medium baseline
 config = {
     'concat_nframes': 3,     # the number of frames to concat with, n must be odd (total 2k+1 = n frames)
-    'train_ratio': 0.75,   # the ratio of data used for training, the rest will be used for validation
+    'train_ratio': 0.8,   # the ratio of data used for training, the rest will be used for validation
     'seed': 1213,   
     'batch_size': 512,           
     'num_epoch': 1000, 
@@ -186,13 +186,13 @@ input_dim = config['concat_nframes']*39 # the input dim of the model, you should
 
 def train():
     # Dataloader
-    same_seeds(seed)
+    same_seeds(config['seed'])
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f'DEVICE: {device}')
 
     # preprocess data
-    train_X, train_y = preprocess_data(split='train', feat_dir='./libriphone/feat', phone_path='./libriphone', concat_nframes=concat_nframes, train_ratio=train_ratio)
-    val_X, val_y = preprocess_data(split='val', feat_dir='./libriphone/feat', phone_path='./libriphone', concat_nframes=concat_nframes, train_ratio=train_ratio)
+    train_X, train_y = preprocess_data(split='train', feat_dir='data//libriphone/feat', phone_path='data/libriphone', concat_nframes=config['concat_nframes'], train_ratio=config['train_ratio'])
+    val_X, val_y = preprocess_data(split='val', feat_dir='data/libriphone/feat', phone_path='data/libriphone', concat_nframes=config['concat_nframes'], train_ratio=config['train_ratio'])
 
     # get dataset
     train_set = LibriDataset(train_X, train_y)
@@ -203,16 +203,17 @@ def train():
     gc.collect()
 
     # get dataloader
-    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_set, batch_size=config['batch_size'], shuffle=True)
+    val_loader = DataLoader(val_set, batch_size=config['batch_size'], shuffle=False)
 
     # Training 
     # create model, define a loss function, and optimizer
-    model = Classifier(input_dim=input_dim, hidden_layers=hidden_layers, hidden_dim=hidden_dim).to(device)
+    model = Classifier(input_dim=input_dim, hidden_layers=config['hidden_layers'], hidden_dim=config['hidden_dim']).to(device)
     criterion = nn.CrossEntropyLoss() 
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
 
     best_acc = 0.0
+    num_epoch = config['num_epoch']
     for epoch in range(num_epoch):
         train_acc = 0.0
         train_loss = 0.0
@@ -257,7 +258,7 @@ def train():
         # if the model improves, save a checkpoint at this epoch
         if val_acc > best_acc:
             best_acc = val_acc
-            torch.save(model.state_dict(), model_path)
+            torch.save(model.state_dict(), config['model_path'])
             print(f'saving model with acc {best_acc/len(val_set):.5f}')
 
     del train_set, val_set
@@ -265,3 +266,33 @@ def train():
     gc.collect()
 
 
+def test():
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # load data
+    test_X = preprocess_data(split='test', feat_dir='data/libriphone/feat', phone_path='data/libriphone', concat_nframes=config['concat_nframes'])
+    test_set = LibriDataset(test_X, None)
+    test_loader = DataLoader(test_set, batch_size=config['batch_size'], shuffle=False)
+    # load model
+    model = Classifier(input_dim=input_dim, hidden_layers=config['hidden_layers'], hidden_dim=config['hidden_dim']).to(device)
+    model.load_state_dict(torch.load(config['model_path']))
+    pred = np.array([], dtype=np.int32)
+
+    model.eval()
+    with torch.no_grad():
+        for i, batch in enumerate(tqdm(test_loader)):
+            features = batch
+            features = features.to(device)
+
+            outputs = model(features)
+
+            _, test_pred = torch.max(outputs, 1) # get the index of the class with the highest probability
+            pred = np.concatenate((pred, test_pred.cpu().numpy()), axis=0)
+
+    with open('prediction.csv', 'w') as f:
+        f.write('Id,Class\n')
+        for i, y in enumerate(pred):
+            f.write('{},{}\n'.format(i, y))
+
+
+if __name__ == '__main__':
+    train()
