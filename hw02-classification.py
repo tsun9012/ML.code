@@ -7,6 +7,7 @@ from tqdm import tqdm
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import gc
+import pandas as pd
 
 # Fixes random number generator seeds for reproducibility.
 def same_seeds(seed):
@@ -145,7 +146,9 @@ class BasicBlock(nn.Module):
         # Reference: https://pytorch.org/docs/stable/generated/torch.nn.BatchNorm1d.html (batch normalization)
         #       https://pytorch.org/docs/stable/generated/torch.nn.Dropout.html (dropout)
         self.block = nn.Sequential(
+            nn.Dropout(p=0.3),
             nn.Linear(input_dim, output_dim),
+            nn.BatchNorm1d(output_dim),
             nn.ReLU(),
         )
 
@@ -171,15 +174,15 @@ class Classifier(nn.Module):
 # parameters config
 # TODO: change the value of "concat_nframes" for medium baseline
 config = {
-    'concat_nframes': 3,     # the number of frames to concat with, n must be odd (total 2k+1 = n frames)
+    'concat_nframes': 5,     # the number of frames to concat with, n must be odd (total 2k+1 = n frames)
     'train_ratio': 0.8,   # the ratio of data used for training, the rest will be used for validation
     'seed': 1213,   
     'batch_size': 512,           
-    'num_epoch': 1000, 
+    'num_epoch': 100, 
     'learning_rate': 1e-4,              
     'model_path': './models/hw02-classification.pth',    
-    'hidden_layers': 2, # TODO: change the value of "hidden_layers" or "hidden_dim" for medium baseline
-    'hidden_dim': 64
+    'hidden_layers': 5, # TODO: change the value of "hidden_layers" or "hidden_dim" for medium baseline
+    'hidden_dim': 128
 }
 input_dim = config['concat_nframes']*39 # the input dim of the model, you should not change the value
 
@@ -211,6 +214,9 @@ def train():
     model = Classifier(input_dim=input_dim, hidden_layers=config['hidden_layers'], hidden_dim=config['hidden_dim']).to(device)
     criterion = nn.CrossEntropyLoss() 
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
+
+    epochNo = []
+    trainLoss = []
 
     best_acc = 0.0
     num_epoch = config['num_epoch']
@@ -254,6 +260,8 @@ def train():
                 val_loss += loss.item()
 
         print(f'[{epoch+1:03d}/{num_epoch:03d}] Train Acc: {train_acc/len(train_set):3.5f} Loss: {train_loss/len(train_loader):3.5f} | Val Acc: {val_acc/len(val_set):3.5f} loss: {val_loss/len(val_loader):3.5f}')
+        epochNo.append(epoch)
+        trainLoss.append(train_loss/len(train_loader))
 
         # if the model improves, save a checkpoint at this epoch
         if val_acc > best_acc:
@@ -263,6 +271,9 @@ def train():
 
     del train_set, val_set
     del train_loader, val_loader
+    outDict = {"epochNo" : epochNo, "trainLoss" : trainLoss}
+    outdf = pd.DataFrame(outDict)
+    outdf.to_csv("hw02.csv", index=False)
     gc.collect()
 
 
