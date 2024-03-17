@@ -32,18 +32,23 @@ def same_seeds(seed):
 test_tfm = transforms.Compose([
     transforms.Resize((128, 128)),
     transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
 ])
 
 # However, it is also possible to use augmentation in the testing phase.
 # You may use train_tfm to produce a variety of images and then test using ensemble methods
 train_tfm = transforms.Compose([
     # Resize the image into a fixed shape (height = width = 128)
-    transforms.Resize((128, 128)),
+    #transforms.Resize((128, 128)),
     # You may add some transforms here.
-    
+    transforms.RandomResizedCrop(128, scale=(0.6, 1.0), ratio=(3. / 4., 4. / 3.)),
+    transforms.RandomHorizontalFlip(p=0.5), # 以0.5概率水平翻转
     # ToTensor() should be the last one of the transforms.
     transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
 ])
+
+
 
 # The data is labelled by the name, so we load images and label while calling 'getitem'
 class FoodDataset(Dataset):
@@ -121,7 +126,7 @@ class Classifier(nn.Module):
 
 config = {
     'batch_size': 256,
-    'n_epochs':100,
+    'n_epochs':200,
     'patience': 50, # If no improvement in 'patience' epochs, early stop.
     'seed': 1213,   
     'learning_rate': 0.0003, 
@@ -186,6 +191,8 @@ def train():
             optimizer.step()
 
             # Compute the accuracy for current batch.
+            # temp = logits.argmax(dim=-1)
+
             acc = (logits.argmax(dim=-1) == labels.to(device)).float().mean()
 
             # Record the loss and accuracy.
