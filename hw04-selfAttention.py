@@ -272,7 +272,7 @@ def parse_args_train():
 		"data_dir": "data/ml2023springhw4/Dataset",
 		"save_path": "models/hw04_model.pth",
 		"batch_size": 64,
-		"n_workers": 8,
+		"n_workers": 4,
 		"valid_steps": 2000,
 		"warmup_steps": 1000,
 		"save_steps": 10000,
