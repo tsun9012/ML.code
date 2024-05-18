@@ -13,11 +13,6 @@ import pandas as pd
 import cv2
 from tqdm import tqdm
 
-train = np.load('data/ml2023springhw5/trainingset.npy', allow_pickle=True)
-test = np.load('data/ml2023springhw5/testingset.npy', allow_pickle=True)
-
-print(train.shape)
-print(test.shape)
 
 def same_seeds(seed):
     random.seed(seed)
@@ -32,7 +27,6 @@ def same_seeds(seed):
 same_seeds(48763)
 
 # Models & loss
-
 class fcn_autoencoder(nn.Module):
     def __init__(self):
         super(fcn_autoencoder, self).__init__()
@@ -71,13 +65,13 @@ class conv_autoencoder(nn.Module):
             nn.ReLU(),
             nn.Conv2d(12, 24, 4, stride=2, padding=1),        
             nn.ReLU(),
-			      nn.Conv2d(24, 48, 4, stride=2, padding=1),         
+			nn.Conv2d(24, 48, 4, stride=2, padding=1),         
             nn.ReLU(),
         )   # Hint:  dimension of latent space can be adjusted
         self.decoder = nn.Sequential(
-			      nn.ConvTranspose2d(48, 24, 4, stride=2, padding=1),
+			nn.ConvTranspose2d(48, 24, 4, stride=2, padding=1),
             nn.ReLU(),
-			      nn.ConvTranspose2d(24, 12, 4, stride=2, padding=1), 
+			nn.ConvTranspose2d(24, 12, 4, stride=2, padding=1), 
             nn.ReLU(),
             nn.ConvTranspose2d(12, 3, 4, stride=2, padding=1),
             nn.Tanh(),
@@ -108,9 +102,9 @@ class VAE(nn.Module):
         )
         # Hint: can add more layers to encoder and decoder
         self.decoder = nn.Sequential(
-			      nn.ConvTranspose2d(48, 24, 4, stride=2, padding=1), 
+			nn.ConvTranspose2d(48, 24, 4, stride=2, padding=1), 
             nn.ReLU(),
-			      nn.ConvTranspose2d(24, 12, 4, stride=2, padding=1), 
+			nn.ConvTranspose2d(24, 12, 4, stride=2, padding=1), 
             nn.ReLU(),
             nn.ConvTranspose2d(12, 3, 4, stride=2, padding=1), 
             nn.Tanh(),
@@ -179,10 +173,12 @@ class CustomTensorDataset(TensorDataset):
         return len(self.tensors)
 
 def train():
+    train = np.load('data/ml2023springhw5/trainingset.npy', allow_pickle=True)
+    print(train.shape)
     # Training
     # Training hyperparameters
-    num_epochs = 50
-    batch_size = 2000 # Hint: batch size may be lower
+    num_epochs = 200
+    batch_size = 512 # Hint: batch size may be lower
     learning_rate = 1e-3
 
     # Build training dataloader
@@ -240,17 +236,19 @@ def train():
         torch.save(model, 'last_model_{}.pt'.format(model_type))
 
 def test():
+    test = np.load('data/ml2023springhw5/testingset.npy', allow_pickle=True)
+    print(test.shape)
     eval_batch_size = 200
     model_type = 'vae'
     # build testing dataloader
     data = torch.tensor(test, dtype=torch.float32)
     test_dataset = CustomTensorDataset(data)
     test_sampler = SequentialSampler(test_dataset)
-    test_dataloader = DataLoader(test_dataset, sampler=test_sampler, batch_size=eval_batch_size, num_workers=1)
+    test_dataloader = DataLoader(test_dataset, sampler=test_sampler, batch_size=eval_batch_size, num_workers=0)
     eval_loss = nn.MSELoss(reduction='none')
 
     # load trained model
-    checkpoint_path = f'last_model_{model_type}.pt'
+    checkpoint_path = f'best_model_{model_type}.pt'
     model = torch.load(checkpoint_path)
     model.eval()
 
@@ -278,5 +276,5 @@ def test():
 
 
 if __name__ == '__main__':
-    train()
+    test()
 
